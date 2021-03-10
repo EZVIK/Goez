@@ -1,43 +1,43 @@
 package main
 
 import (
+	"Goez/models"
+	"Goez/pkg/config"
+	"Goez/pkg/gredis"
+	"Goez/routers"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 	"log"
+	"net/http"
 )
 
+
+func init() {
+
+	config.Setup()
+	models.Setup()
+	gredis.Setup()
+
+}
+
 func main() {
+	gin.SetMode(config.ServerSetting.RunMode)
 
-	app := fiber.New()
+	routersInit := routers.InitRouter()
+	readTimeout := config.ServerSetting.ReadTimeout
+	writeTimeout := config.ServerSetting.WriteTimeout
+	endPoint := fmt.Sprintf(":%d", config.ServerSetting.HttpPort)
+	maxHeaderBytes := 1 << 20
 
-	app.Static("/", "./public")
-	// => http://localhost:3000/js/script.js
-	// => http://localhost:3000/css/style.css
+	server := &http.Server{
+		Addr:           endPoint,
+		Handler:        routersInit,
+		ReadTimeout:    readTimeout,
+		WriteTimeout:   writeTimeout,
+		MaxHeaderBytes: maxHeaderBytes,
+	}
 
-	app.Static("/prefix", "./public")
-	// => http://localhost:3000/prefix/js/script.js
-	// => http://localhost:3000/prefix/css/style.css
+	log.Printf("[info] start app server listening %s", endPoint)
 
-	app.Static("*", "./public/index.html")
-	// => http://localhost:3000/any/path/shows/index/html
-
-	// Match any route
-	app.Use(func(c *fiber.Ctx) error {
-		fmt.Println("🥇 First handler")
-		return c.Next()
-	})
-
-	// Match all routes starting with /api
-	app.Use("/api", func(c *fiber.Ctx) error {
-		fmt.Println("🥈 Second handler")
-		return c.Next()
-	})
-
-	// GET /api/register
-	app.Get("/api/list", func(c *fiber.Ctx) error {
-		fmt.Println("🥉 Last handler")
-		return c.SendString("Hello, World 👋!")
-	})
-
-	log.Fatal(app.Listen(":6000"))
+	server.ListenAndServe()
 }
