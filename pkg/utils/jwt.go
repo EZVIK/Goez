@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-
 var jwtSecret []byte
 
 type Claims struct {
@@ -17,7 +16,7 @@ type Claims struct {
 
 func GenerateToken(username, password string, userId int) (string, error) {
 	nowTime := time.Now()
-	expireTime := nowTime.Add(3 * time.Hour)
+	expireTime := nowTime.Add(24 * time.Hour)
 
 	claims := Claims{
 		EncodeMD5(username),

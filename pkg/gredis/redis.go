@@ -11,7 +11,7 @@ import (
 var RedisConn *redis.Pool
 
 // Setup Initialize the Redis instance
-func Setup() error {
+func Setup() {
 
 	RedisConn = &redis.Pool{
 		MaxIdle:     config.RedisSetting.MaxIdle,
@@ -37,8 +37,6 @@ func Setup() error {
 	}
 
 	fmt.Println("System ...Redis databse config initiated.")
-
-	return nil
 }
 
 // Set a key/value
@@ -117,4 +115,3 @@ func LikeDeletes(key string) error {
 
 	return nil
 }
-

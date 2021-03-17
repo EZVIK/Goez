@@ -6,95 +6,95 @@ import (
 	"Goez/pkg/gredis"
 	"Goez/pkg/search"
 	"encoding/json"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"strconv"
 )
 
+// 文章
 type Article struct {
-	ID          int 		`gorm:"primary_key" json:"id"`
-	Title 		string 		`gorm:"varchar(50)" json:"title"`
-	Desc		string 		`gorm:"varchar(200)" json:"desc"`
-	Content     string 		`gorm:"type:text" json:"content"`
-	View		int64		`gorm:"default:0" json:"view"`
-	UserId		int			`gorm:"index" json:"user_id"`
-	Tags        *[]Tag		`gorm:"many2many:article_tags;"`
-	ModelTime
+	ID      int    `gorm:"primary_key" json:"id"`
+	Title   string `gorm:"varchar(50);unique" json:"title"`
+	Desc    string `gorm:"varchar(200)" json:"desc"`
+	Content string `gorm:"type:text" json:"content"`
+	View    int64  `gorm:"default:0" json:"view"`
+	UserId  int    `gorm:"index" json:"user_id"`
+	Tags    []Tag  `gorm:"many2many:article_tags;"`
+	gorm.Model
 }
 
-
+// 文章列表
 type ArticleList struct {
-	ID				int
-	Title			string
-	View            int
+	ID    int
+	Title string
+	View  int
 }
 
 // 获取文章
-func (art Article) GetArticleByFields(field, keyword string) (al []ArticleList, count int, err error) {
+func (art Article) GetArticleByFields(field, keyword string, pageIndex, pageSize int) (al []ArticleList, count int, err error) {
 
 	fields := []string{"title", "desc", "content"}
 
 	if field != "" {
 		if ok, err := search.In(fields, field); !ok {
-			return al,count, err
+			return al, count, err
 		}
 	}
 
 	if field == "" && keyword == "" {
-		db.Debug().Model(&Article{}).Select("id,title,view").Where("deleted_on is null").Scan(&al)
+		db.Debug().Scopes(Paginate(pageIndex, pageSize)).Model(&Article{}).Select("id,title,view").Scan(&al)
 	} else {
 		err := db.Debug().Model(&Article{}).
 			Select("id,title,view").
-			Where(field+" like  ? and deleted_on is null", "%"+keyword+"%").
 			Scan(&al).
 			Order("view desc").Error
 
 		if err != nil {
-		    return al,count, err
+			return al, count, err
 		}
 	}
 	count = len(al)
 
-
 	return al, count, nil
 }
 
+// 根据id 获取文章
 func (art Article) GetArticlesById() (a Article, err error) {
 
-	// 查询redis key 并 + 1访问量
-	a, err = CacheArticle(art.ID)
+	//// 查询redis key 并 + 1访问量
+	//a, err = CacheArticle(art.ID)
+	//
+	//// 返回缓存
+	//if err == nil {
+	//	// 更新缓存访问量
+	//	if err := CacheSetArticleView(a); err != nil {
+	//		return a, err
+	//	}
+	//	a.View = a.View + 1
+	//   return a, err
+	//}
 
-	// 返回缓存
-	if err == nil {
-		// 更新缓存访问量
-		if err := CacheSetArticleView(a); err != nil {
-			return a, err
-		}
-		a.View = a.View + 1
-	   return a, err
-	}
-
-	// 为查询到缓存， 查询mysql
+	//db.Where("title like ?", "%"+art.Title+"%").First(&art)
 	a.ID = art.ID
 
-	if err := db.Debug().Model(&Article{}).First(&a).Error; err != nil {
-		return Article{}, err
+	if err := db.Model(&Article{}).Preload("Tags").First(&a).Error; err != nil {
+		return a, err
 	}
 
-	//// 访问量 + 1
+	// 访问量 + 1
 	//if err := a.ViewArticle(); err != nil {
 	//	return a, err
 	//}
 
 	// 设置缓存
-	if err := a.CacheSetArticle(); err != nil {
-		return a, err
-	}
+	//if err := a.CacheSetArticle(); err != nil {
+	//	return a, err
+	//}
 
 	return a, nil
 }
 
+// 添加文章
 func (art Article) AddArticle() (Article, error) {
-
 
 	ts := db.Begin()
 	defer ts.Rollback()
@@ -104,7 +104,7 @@ func (art Article) AddArticle() (Article, error) {
 	err := ts.First(&u).Error
 
 	if err != nil {
-	    return Article{}, err
+		return Article{}, err
 	}
 
 	// TODO CHECK ARTICLE PARAMS
@@ -112,22 +112,30 @@ func (art Article) AddArticle() (Article, error) {
 	err = ts.Create(&art).Error
 
 	if err != nil {
-	    return Article{}, err
+		return Article{}, err
 	}
 
 	return art, ts.Commit().Error
 }
 
-func (art Article)  DeleteArticle() (bool, error) {
+// 删除文章 TODO 清除关系
+func (art Article) DeleteArticle() error {
 
-	if err := db.Unscoped().Where("id = ?", art.ID).Error; err != nil {
-		return false, err
+	aa, err := art.GetArticlesById()
+
+	if err := db.Model(&aa).Association("Tags").Delete(aa.Tags); err != nil {
+		return err
 	}
 
-	return true, nil
+	if err := db.Debug().Delete(&aa).Error; err != nil {
+		return err
+	}
+
+	return err
 }
 
-func (art Article)  GetArticleTitleList() (al []ArticleList, err error) {
+// 获取文章列表
+func (art Article) GetArticleTitleList() (al []ArticleList, err error) {
 
 	al, err = CacheQueryArticleList()
 	if err == nil {
@@ -136,29 +144,17 @@ func (art Article)  GetArticleTitleList() (al []ArticleList, err error) {
 		// err redis 连接异常等情况
 	}
 
-	err = db.Debug().Model(&Article{}).Select("id,title,view").Order("view desc").Limit(10).Scan(&al).Error;
+	err = db.Debug().Model(&Article{}).Select("id,title,view").Order("view desc").Limit(10).Scan(&al).Error
 
-	if  err != nil {
+	if err != nil {
 		return al, err
 	}
 
 	if err := CacheSetArticleList(al); err != nil {
-		return al , err
+		return al, err
 	}
 
 	return al, nil
-}
-
-
-// ------------------------ Cache init ------------------------
-
-func CacheInit()  {
-
-}
-
-// TODO 同步cache 和 db
-func CacheSync()  {
-
 }
 
 // ------------------------ Cache ------------------------
@@ -172,7 +168,7 @@ func (a Article) ViewArticle() (err error) {
 }
 
 // 设置文章缓存
-func (a Article) CacheSetArticle()  (err error) {
+func (a Article) CacheSetArticle() (err error) {
 	articleKey := e.CACHE_ARTICLE + strconv.Itoa(a.ID)
 
 	if err := gredis.Set(articleKey, a, config.AppSetting.CacheDuration); err != nil {
@@ -189,7 +185,9 @@ func CacheArticle(articleId int) (a Article, err error) {
 
 	// redis 查询到key
 	if err == nil {
-		json.Unmarshal(adata, &a)
+		if err := json.Unmarshal(adata, &a); err != nil {
+			return a, err
+		}
 		return a, nil
 	}
 	return a, err
@@ -201,10 +199,12 @@ func CacheSetArticleView(a Article) error {
 	adata, err := gredis.Get(articleKey)
 
 	if err != nil {
-	    return err
+		return err
 	}
 
-	json.Unmarshal(adata, &a)
+	if err := json.Unmarshal(adata, &a); err != nil {
+		return err
+	}
 	a.View = a.View + 1
 	if err := gredis.Set(articleKey, a, config.AppSetting.CacheDuration); err != nil {
 		return err
@@ -213,17 +213,19 @@ func CacheSetArticleView(a Article) error {
 }
 
 // 设置文章列表缓存
-func CacheSetArticleList(al []ArticleList) (error) {
-	return gredis.Set("current_article_list", al, 3600 * 2)
+func CacheSetArticleList(al []ArticleList) error {
+	return gredis.Set("current_article_list", al, 3600*2)
 }
 
 func CacheQueryArticleList() (as []ArticleList, err error) {
 	data, err := gredis.Get("current_article_list")
 	if err != nil {
-	    return as, err
+		return as, err
 	}
 
-	json.Unmarshal(data, &as)
+	if err := json.Unmarshal(data, &as); err != nil {
+		return as, err
+	}
 
 	return as, nil
 }

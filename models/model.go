@@ -7,28 +7,22 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
+	"strconv"
 	"time"
 )
 
 type ID struct {
-	ID         int `gorm:"primary_key" json:"id"`
+	ID int `gorm:"primary_key" json:"id"`
 }
 
-type ModelTime struct {
-	CreatedOn  time.Time `gorm:"" json:"created_on"`
-	ModifiedOn time.Time `json:"modified_on"`
-	DeletedOn  *time.Time `json:"deleted_on"`
-}
-
-func NewModelTime() ModelTime {
-	t,_ := utils.GetNowTimeCST()
-
-	return ModelTime{CreatedOn: t, ModifiedOn: t}
+func NewModelTime() gorm.Model {
+	t, _ := utils.GetNowTimeCST()
+	return gorm.Model{CreatedAt: t, UpdatedAt: t}
 }
 
 var db *gorm.DB
 
-func Setup()  {
+func Setup() {
 
 	var err error
 	dbConfig := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8&parseTime=True&loc=Local",
@@ -38,7 +32,6 @@ func Setup()  {
 		config.DatabaseSetting.Name)
 
 	db, err = gorm.Open(mysql.Open(dbConfig), &gorm.Config{})
-
 	if err != nil {
 		log.Fatalf("models.Setup err: %v", err)
 	}
@@ -68,17 +61,42 @@ func Setup()  {
 	sqlDB.SetConnMaxLifetime(3 * time.Second)
 
 	// SetMaxOpenConns 设置打开数据库连接的最大数量
-	sqlDB.SetMaxOpenConns(0)
-
-	sqlDB.SetMaxIdleConns(0)
-
-
+	//sqlDB.SetMaxOpenConns(1000)
+	//
+	//sqlDB.SetMaxIdleConns(1000)
 
 	fmt.Println("System ... Mysql database initiated.")
 
 }
 
-// CloseDB closes database connection (unnecessary)
-func CloseDB() {
+func PageChecker(pageIndex string, pageSize string) (pi int, ps int) {
 
+	pi, err1 := strconv.Atoi(pageIndex)
+	ps, err2 := strconv.Atoi(pageSize)
+
+	if err1 != nil {
+		pi = 1
+	}
+
+	if err2 != nil {
+		ps = 10
+	}
+
+	return pi, ps
+}
+
+func Paginate(page int, pageSize int) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if page == 0 {
+			page = 1
+		}
+		switch {
+		case pageSize > 100:
+			pageSize = 100
+		case pageSize <= 0:
+			pageSize = 10
+		}
+		offset := (page - 1) * pageSize
+		return db.Offset(offset).Limit(pageSize)
+	}
 }

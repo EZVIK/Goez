@@ -3,28 +3,30 @@ package models
 import (
 	"Goez/pkg/e"
 	"errors"
+	"time"
 )
 
 type Tag struct {
-	ID 			int 		`gorm:"primary_key" json:"id"`
-	Name    	string		`json:"name"`
+	ID        int       `gorm:"primary_key" json:"id"`
+	Name      string    `json:"name"`
+	DeletedAt time.Time `json:"deleted_at"`
 }
 
 type ArticleTag struct {
-	ID 			int 		`gorm:"primary_key" json:"id"`
-	ArticleId	int			`json:"articleId"`
-	TagId		int			`json:"tagId"`
+	ID        int `gorm:"primary_key" json:"id"`
+	ArticleId int `json:"article_id"`
+	TagId     int `json:"tag_id"`
 }
 
 // 添加文章绑定标签
-func (a *Article) ArtBindTags(ArtId int, tagsId []int) error{
+func (a *Article) ArtBindTags(ArtId int, tagsId []int) error {
 
 	var at []ArticleTag
 	for _, value := range tagsId {
-		at = append(at, ArticleTag{ArticleId: ArtId, TagId:  value})
+		at = append(at, ArticleTag{ArticleId: ArtId, TagId: value})
 	}
 
-	if err := db.Create(&at).Error; err!= nil {
+	if err := db.Create(&at).Error; err != nil {
 		return err
 	}
 
@@ -43,20 +45,39 @@ func (t Tag) AddTag() (Tag, error) {
 	return t, nil
 }
 
-func AddTags(t []Tag) (error) {
+func AddTags(t []Tag) error {
 	if err := db.Debug().Create(&t).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func GetTagsById(id int) (t Tag, err error) {
-	t.ID = id
-	err = db.First(&t).Error
+func (t Tag) GetTag() (tag Tag, err error) {
+	err = db.Model(Tag{}).Where("name = ?", t.Name).First(&tag).Error
 	return
 }
 
-func (t Tag) GetTag() (tag Tag, err error) {
-	err = db.Model(Tag{}).Where("name = ?", t.Name).First(&tag).Error
+func GetTagsFromRecord(userId int) (tags []Tag, err error) {
+
+	err = db.Debug().Model(&Tag{}).Select("tags.id, tags.name").
+		Joins("LEFT JOIN article_tags ats ON tags.id = ats.tag_id").
+		Joins("LEFT JOIN records re ON ats.article_id = re.article_id").
+		Where("user_id = ?", userId).Find(&tags).Error
+
+	return
+}
+
+func (t Tag) DeleteTag() (err error) {
+	err = db.Delete(&t).Error
+
+	return
+}
+
+func GetTagsFromArticle(article int) (tags []Tag, err error) {
+
+	err = db.Debug().Model(&Tag{}).Select("tags.id, tags.name").
+		Joins("LEFT JOIN article_tags ats ON tags.id = ats.tag_id").Error
+	//Where("ats.article_id = ?", article).Find(&tags).Error
+
 	return
 }

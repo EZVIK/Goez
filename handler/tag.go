@@ -8,9 +8,10 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 )
 
-func AddTag(c *gin.Context)  {
+func AddTag(c *gin.Context) {
 	appG := app.Gin{C: c}
 
 	atp := new(dto.AddTagsParams)
@@ -40,23 +41,56 @@ func AddTag(c *gin.Context)  {
 	appG.Response(http.StatusOK, e.SUCCESS, nil)
 }
 
-func GetTagById(c *gin.Context)  {
+func GetTagById(c *gin.Context) {
 	appG := app.Gin{C: c}
 
 	appG.Response(http.StatusOK, e.SUCCESS, nil)
 
 }
 
-func UpdateTagById(c *gin.Context)  {
+func UpdateTagById(c *gin.Context) {
 	appG := app.Gin{C: c}
 
 	appG.Response(http.StatusOK, e.SUCCESS, nil)
 
 }
 
-func DeleteTag(c *gin.Context)  {
+func DeleteTag(c *gin.Context) {
 	appG := app.Gin{C: c}
 
+	tag := models.Tag{}
+
+	if err := c.ShouldBind(&tag); err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	if err := tag.DeleteTag(); err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
 	appG.Response(http.StatusOK, e.SUCCESS, nil)
+
+}
+
+func GetArticleTag(c *gin.Context) {
+
+	appG := app.Gin{C: c}
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	tags, err := models.GetTagsFromArticle(id)
+
+	if err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	appG.Response(http.StatusOK, e.SUCCESS, tags)
 
 }
