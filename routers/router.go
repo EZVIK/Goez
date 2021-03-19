@@ -49,6 +49,7 @@ func InitRouter() *gin.Engine {
 	auth.DELETE("/article", handler.DeleteArticle)
 	auth.GET("/article/:id", handler.QueryArticleByIdAuth)
 	auth.POST("/upload", handler.UploadImage)
+	auth.POST("/article/export", handler.ExportArticleData)
 
 	return r
 }

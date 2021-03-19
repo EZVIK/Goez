@@ -12,8 +12,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/go-resty/resty/v2"
 	"gorm.io/gorm"
+	"math/rand"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // article
@@ -46,21 +48,21 @@ func QueryArticleById(c *gin.Context) {
 		return
 	}
 
-	// 获取用户id
-	token := c.GetHeader("token")
-	claims, err := utils.ParseToken(token)
-	if err != nil && claims != nil {
-		appG.Response(http.StatusBadRequest, code, err)
-		return
-	}
-
-	// 添加浏览记录
-	r := models.Record{UserId: claims.UserId, ArticleId: i}
-
-	if _, err := models.AddRecord(r); err != nil {
-		appG.Response(http.StatusBadRequest, code, err)
-		return
-	}
+	//// 获取用户id
+	//token := c.GetHeader("token")
+	//claims, err := utils.ParseToken(token)
+	//if err != nil && claims != nil {
+	//	appG.Response(http.StatusBadRequest, code, err)
+	//	return
+	//}
+	//
+	//// 添加浏览记录
+	//r := models.Record{UserId: claims.UserId, ArticleId: i}
+	//
+	//if _, err := models.AddRecord(r); err != nil {
+	//	appG.Response(http.StatusBadRequest, code, err)
+	//	return
+	//}
 
 	c.JSON(code, gin.H{
 		"code": code,
@@ -148,17 +150,35 @@ func Recommand(c *gin.Context) {
 		return
 	}
 
+	rew := map[int]int{}
+	temp_tags := [5]models.Tag{}
+
+	s1 := rand.NewSource(time.Now().UnixNano())
+	r1 := rand.New(s1)
+
+	// 随机抽取 5个标签作为依据
+	for i := 0; i < 5; i++ {
+		for {
+			num := r1.Intn(len(tags))
+			if rew[num] != 1 {
+				rew[num] = 1
+				temp_tags[i] = tags[num]
+				break
+			}
+		}
+	}
+
 	var buffer bytes.Buffer
 	// 合并标签 为字符串
-	for i, k := range tags {
-		buffer.WriteString(k.Name)
+	for i, k := range temp_tags {
+		buffer.WriteString(strconv.Itoa(k.ID))
 		if i != len(tags)-1 {
 			buffer.WriteString(" ")
 		}
 	}
 
 	reqData := map[string]string{
-		"id":   strconv.Itoa(userId),
+		"id":   utils.EncodeMD5(strconv.Itoa(userId)),
 		"tags": buffer.String(),
 	}
 
@@ -174,22 +194,29 @@ func Recommand(c *gin.Context) {
 	}
 
 	reqDa := TagText{}
-	// 推荐文章列表
+	// 解析 推荐文章列表ID
 	if err := json.Unmarshal(respData.Body(), &reqDa); err != nil {
 		appG.Response(http.StatusBadRequest, e.INVALID_PARAMS, nil)
 		return
 	}
 
-	appG.Response(http.StatusOK, e.SUCCESS, reqDa.Data)
+	// 查询 推荐文章 并返回
+	as, err := models.GetArticleByIds(reqDa.Data)
+	if err != nil {
+		appG.Response(http.StatusBadRequest, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	appG.Response(http.StatusOK, e.SUCCESS, as)
 }
 
 type TagText struct {
-	Data []string `json:"data"`
+	Data []int `json:"data"`
 }
 
 // ----------- 后台管理 ----------- //
 
-//  查询文章详情 /article/:id TODO 直接查询数据库 不使用缓存
+//  查询文章详情 /article/:id
 func QueryArticleByIdAuth(c *gin.Context) {
 	appG := app.Gin{C: c}
 
@@ -235,7 +262,7 @@ func AddArticle(c *gin.Context) {
 
 	code := e.SUCCESS
 
-	aa := dto.AddArticleParams{}
+	aa := dto.ArticleParams{}
 
 	if err := appG.C.ShouldBind(&aa); err != nil {
 		appG.Response(http.StatusBadRequest, e.INVALID_PARAMS, err)
@@ -254,28 +281,26 @@ func AddArticle(c *gin.Context) {
 		code = e.ERROR
 	}
 
-	var ts []models.Tag
+	ts, err := models.GetTagsByIds(aa.Tags)
 	art := models.Article{0, aa.Title, aa.Desc, aa.Content, 0, claims.UserId, ts, gorm.Model{}}
 
-	// loop tags check if insert
-	for _, temp_tag := range aa.Tags {
-
-		if !checkTagName(temp_tag) {
-			continue
-		}
-
-		checkTag := models.Tag{Name: temp_tag}
-
-		t, err := checkTag.GetTag()
-		if err != nil {
-			appG.Response(http.StatusBadRequest, e.INVALID_PARAMS, err)
-			return
-		}
-		// 添加到文章标签列表
-		ts = append(ts, t)
-	}
-
-	art.Tags = ts
+	//// loop tags check if insert
+	//for _, temp_tag := range aa.Tags {
+	//
+	//	if !checkTagName(temp_tag) {
+	//		continue
+	//	}
+	//
+	//	checkTag := models.Tag{Name: temp_tag}
+	//
+	//	t, err := checkTag.GetTag()
+	//	if err != nil {
+	//		appG.Response(http.StatusBadRequest, e.INVALID_PARAMS, err)
+	//		return
+	//	}
+	//	// 添加到文章标签列表
+	//	ts = append(ts, t)
+	//}
 
 	a, err := art.AddArticle()
 
@@ -293,7 +318,39 @@ func AddArticle(c *gin.Context) {
 
 // 更新文章
 func UpdateArticle(c *gin.Context) {
+	appG := app.Gin{C: c}
 
+	adto := dto.ArticleParams{}
+
+	if err := c.ShouldBind(&adto); err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	art, err := models.CacheArticle(adto.ID)
+	if err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	art.Title = adto.Title
+	art.Content = adto.Content
+	art.Desc = adto.Desc
+
+	tags, err := models.GetTagsByIds(adto.Tags)
+	if err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	art.Tags = tags
+
+	if err := art.UpdateService(); err != nil {
+		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
+		return
+	}
+
+	appG.Response(http.StatusOK, e.SUCCESS, nil)
 }
 
 // 删除文章（软删除）
@@ -313,6 +370,36 @@ func DeleteArticle(c *gin.Context) {
 	}
 
 	appG.Response(http.StatusOK, e.SUCCESS, "ok")
+}
+
+func ExportArticleData(c *gin.Context) {
+	appG := app.Gin{C: c}
+
+	as, err := models.ExportArticleData()
+
+	if err != nil {
+		appG.Response(http.StatusBadRequest, e.ERROR_GET_ARTICLES_FAIL, nil)
+		return
+	}
+
+	resData := make([][]string, 0)
+
+	for _, art := range as {
+		var buffer bytes.Buffer
+
+		for i, k := range art.Tags {
+			buffer.WriteString(strconv.Itoa(k.ID))
+			if i != len(art.Tags)-1 {
+				buffer.WriteString(" ")
+			}
+		}
+
+		n1 := []string{strconv.Itoa(art.ID), buffer.String()}
+		resData = append(resData, n1)
+	}
+
+	appG.Response(http.StatusOK, e.SUCCESS, resData)
+
 }
 
 func checkTagName(temp_tag string) bool {

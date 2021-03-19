@@ -3,7 +3,6 @@ package main
 import (
 	"Goez/models"
 	"Goez/pkg/config"
-	"Goez/pkg/gredis"
 	"Goez/routers"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -11,13 +10,9 @@ import (
 	"net/http"
 )
 
-
 func init() {
-
 	config.Setup()
 	models.Setup()
-	gredis.Setup()
-
 }
 
 func main() {

@@ -7,9 +7,9 @@ import (
 )
 
 type Tag struct {
-	ID        int       `gorm:"primary_key" json:"id"`
-	Name      string    `json:"name"`
-	DeletedAt time.Time `json:"deleted_at"`
+	ID        int        `gorm:"primary_key" json:"id"`
+	Name      string     `json:"name"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 type ArticleTag struct {
@@ -26,7 +26,7 @@ func (a *Article) ArtBindTags(ArtId int, tagsId []int) error {
 		at = append(at, ArticleTag{ArticleId: ArtId, TagId: value})
 	}
 
-	if err := db.Create(&at).Error; err != nil {
+	if err := Repo.SqlClient.Create(&at).Error; err != nil {
 		return err
 	}
 
@@ -37,7 +37,7 @@ func (t Tag) AddTag() (Tag, error) {
 	if t.Name == "" {
 		return t, errors.New(e.GetMsg(e.ERROR_TAG_MISSING_PARAMS))
 	}
-	err := db.Create(&t).Error
+	err := Repo.SqlClient.Create(&t).Error
 
 	if err != nil {
 		return t, errors.New(e.GetMsg(e.ERROR_TAG_CREATED_FAILS))
@@ -46,38 +46,43 @@ func (t Tag) AddTag() (Tag, error) {
 }
 
 func AddTags(t []Tag) error {
-	if err := db.Debug().Create(&t).Error; err != nil {
+	if err := Repo.SqlClient.Debug().Create(&t).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
 func (t Tag) GetTag() (tag Tag, err error) {
-	err = db.Model(Tag{}).Where("name = ?", t.Name).First(&tag).Error
+	err = Repo.SqlClient.Model(Tag{}).Where("name = ?", t.Name).First(&tag).Error
 	return
 }
 
 func GetTagsFromRecord(userId int) (tags []Tag, err error) {
 
-	err = db.Debug().Model(&Tag{}).Select("tags.id, tags.name").
+	err = Repo.SqlClient.Debug().Model(&Tag{}).Select("tags.id, tags.name").
 		Joins("LEFT JOIN article_tags ats ON tags.id = ats.tag_id").
 		Joins("LEFT JOIN records re ON ats.article_id = re.article_id").
-		Where("user_id = ?", userId).Find(&tags).Error
+		Where("user_id = ?", userId).Group("tags.id").Find(&tags).Error
 
 	return
 }
 
 func (t Tag) DeleteTag() (err error) {
-	err = db.Delete(&t).Error
+	err = Repo.SqlClient.Delete(&t).Error
 
 	return
 }
 
 func GetTagsFromArticle(article int) (tags []Tag, err error) {
 
-	err = db.Debug().Model(&Tag{}).Select("tags.id, tags.name").
+	err = Repo.SqlClient.Debug().Model(&Tag{}).Select("tags.id, tags.name").
 		Joins("LEFT JOIN article_tags ats ON tags.id = ats.tag_id").Error
 	//Where("ats.article_id = ?", article).Find(&tags).Error
 
+	return
+}
+
+func GetTagsByIds(ids []int) (t []Tag, err error) {
+	err = Repo.SqlClient.Find(&t, ids).Error
 	return
 }

@@ -20,11 +20,12 @@ type ArticleSearchParams struct {
 	PageIndex int    `json:"page_index"`
 }
 
-type AddArticleParams struct {
-	Title   string   `binding:"required" json:"title" form:"title"`
-	Desc    string   `binding:"required" json:"desc" form:"desc"`
-	Content string   `binding:"required" json:"content" form:"content"`
-	Tags    []string `binding:"required" json:"tags" form:"tags"`
+type ArticleParams struct {
+	ID      int    `json:"id"`
+	Title   string `binding:"required" json:"title" form:"title"`
+	Desc    string `binding:"required" json:"desc" form:"desc"`
+	Content string `binding:"required" json:"content" form:"content"`
+	Tags    []int  `binding:"required" json:"tags" form:"tags"`
 }
 
 type AddTagsParams struct {

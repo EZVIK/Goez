@@ -15,7 +15,7 @@ type Record struct {
 func AddRecord(r Record) (int, error) {
 
 	// 查询是否已记录过
-	if err := db.Where("user_id = ? and article_id = ? ", r.UserId, r.ArticleId).First(&r).Error; err != nil {
+	if err := Repo.SqlClient.Where("user_id = ? and article_id = ? ", r.UserId, r.ArticleId).First(&r).Error; err != nil {
 		// 除了无法找到记录, 其余异常返回
 		if err.Error() != e.ErrorMsg["RECORD_NOT_FOUND"] {
 			return 0, err
@@ -31,7 +31,7 @@ func AddRecord(r Record) (int, error) {
 	r.CreatedAt = time.CreatedAt
 	r.UpdatedAt = time.UpdatedAt
 
-	if err := db.Create(&r).Error; err != nil {
+	if err := Repo.SqlClient.Create(&r).Error; err != nil {
 		return 0, err
 	} else {
 		return r.ID, nil
