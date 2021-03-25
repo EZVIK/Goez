@@ -38,7 +38,7 @@ func QueryArticleById(c *gin.Context) {
 	// 查询文章
 	a, err := art.GetArticlesById()
 
-	if err != nil {
+	if err != nil && a.ID != 0 {
 		code = e.INVALID_PARAMS
 		status := http.StatusBadRequest
 		if err.Error() == "record not found" {

@@ -9,8 +9,14 @@ import (
 )
 
 func InitRouter() *gin.Engine {
+	//file := config.AppSetting.RuntimeRootPath + config.AppSetting.LogSavePath + "gin.log"
+	//
+	//f, _ := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	//
+	//gin.DefaultWriter = io.MultiWriter(f, os.Stdout)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(middleware.LoggingMiddleware(middleware.LogConfig{SkipPaths: map[string]bool{"/health": true}}))
 
 	r.Use(middleware.CORS)
 
@@ -42,8 +48,8 @@ func InitRouter() *gin.Engine {
 
 	// -------- 后台管理接口
 	auth := r.Group("/auth/api/v1")
+	auth.Use(middleware.JWT)
 
-	//
 	auth.POST("/article", handler.AddArticle)
 	auth.PATCH("/article", handler.UpdateArticle)
 	auth.DELETE("/article", handler.DeleteArticle)

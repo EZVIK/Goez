@@ -3,16 +3,17 @@ package main
 import (
 	"Goez/models"
 	"Goez/pkg/config"
+	"Goez/pkg/logging"
 	"Goez/routers"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"log"
 	"net/http"
 )
 
 func init() {
 	config.Setup()
 	models.Setup()
+	logging.Setup()
 }
 
 func main() {
@@ -32,7 +33,7 @@ func main() {
 		MaxHeaderBytes: maxHeaderBytes,
 	}
 
-	log.Printf("[info] start app server listening %s", endPoint)
+	logging.Info("start app server listening %s", endPoint)
 
 	server.ListenAndServe()
 }

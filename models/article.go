@@ -76,6 +76,7 @@ func (art Article) GetArticlesById() (a Article, err error) {
 	//Repo.SqlClient.Where("title like ?", "%"+art.Title+"%").First(&art)
 	a.ID = art.ID
 
+	//
 	if err := Repo.SqlClient.Model(&Article{}).Preload("Tags").First(&a).Error; err != nil {
 		return a, err
 	}
