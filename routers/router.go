@@ -15,8 +15,8 @@ func InitRouter() *gin.Engine {
 	//
 	//gin.DefaultWriter = io.MultiWriter(f, os.Stdout)
 
-	r := gin.New()
-	r.Use(middleware.LoggingMiddleware(middleware.LogConfig{SkipPaths: map[string]bool{"/health": true}}))
+	r := gin.Default()
+	//r.Use(middleware.LoggingMiddleware(middleware.LogConfig{SkipPaths: map[string]bool{"/health": true}}))
 
 	r.Use(middleware.CORS)
 
@@ -37,6 +37,8 @@ func InitRouter() *gin.Engine {
 
 	// JWT校验
 	api.Use(middleware.JWT)
+
+	api.POST("/upload", UploadImage)
 
 	// 标签
 	api.GET("/tag/:id", handler.GetTagById)

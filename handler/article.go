@@ -327,7 +327,11 @@ func UpdateArticle(c *gin.Context) {
 		return
 	}
 
-	art, err := models.CacheArticle(adto.ID)
+	art := models.Article{}
+	art.ID = adto.ID
+
+	art, err := art.GetArticlesById()
+
 	if err != nil {
 		appG.Response(http.StatusOK, e.INVALID_PARAMS, nil)
 		return
